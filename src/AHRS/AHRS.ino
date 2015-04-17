@@ -13,6 +13,9 @@
 *
 *
 * History:
+*   * Updated to work also with Pololu MinIMU-9 v3 and Pololu AltIMU-10 v4 sensors. 
+*     Markus Bader <markus.bader@tuwien.ac.at>
+*
 *   * Original code (http://code.google.com/p/sf9domahrs/) by Doug Weibel and Jose Julio,
 *     based on ArduIMU v1.5 by Jordi Munoz and William Premerlani, Jose Julio and Doug Weibel. Thank you!
 *
@@ -173,6 +176,10 @@
 // HARDWARE OPTIONS
 /*****************************************************************/
 // Select your hardware here by uncommenting one line!
+//#define HW__BRAND_SPARKFUN     1 // SparkFun 
+//#define HW__BRAND_POLOLU       2 // Pololu AltIMU-10 v4 or MinIMU-9 v3 on an Arduino UNO SDA -> Analog pin4, SCL -> Analog pin 5
+//#define HW__BRAND HW__BRAND_POLOLU   // Pololu 
+//#define HW__BRAND HW__BRAND_POLOLU   // SparkFun 
 //#define HW__VERSION_CODE 10125 // SparkFun "9DOF Razor IMU" version "SEN-10125" (HMC5843 magnetometer)
 //#define HW__VERSION_CODE 10736 // SparkFun "9DOF Razor IMU" version "SEN-10736" (HMC5883L magnetometer)
 //#define HW__VERSION_CODE 10183 // SparkFun "9DOF Sensor Stick" version "SEN-10183" (HMC5843 magnetometer)
@@ -281,9 +288,14 @@ float GYRO_AVERAGE_OFFSET_Z = 0.0;
 
 
 // Check if hardware version code is defined
-#ifndef HW__VERSION_CODE
-  // Generate compile error
-  #error YOU HAVE TO SELECT THE HARDWARE YOU ARE USING! See "HARDWARE OPTIONS" in "USER SETUP AREA" at top of Razor_AHRS.ino!
+#ifndef HW__BRAND
+  #error YOU HAVE TO SELECT THE HARDWARE BRAND YOU ARE USING! See "HARDWARE OPTIONS" in "USER SETUP AREA" at top of Razor_AHRS.ino!
+#endif
+#if HW__BRAND == HW__BRAND_SPARKFUN
+  #ifndef HW__VERSION_CODE
+    // Generate compile error
+    #error YOU HAVE TO SELECT THE HARDWARE VERSION YOU ARE USING! See "HARDWARE OPTIONS" in "USER SETUP AREA" at top of Razor_AHRS.ino!
+  #endif
 #endif
 
 #include <Wire.h>
