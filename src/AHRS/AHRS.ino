@@ -517,6 +517,7 @@ void setup()
   Accel_Init();
   Magn_Init();
   Gyro_Init();
+  delay(50);  // Give sensors time 
   
   // Read sensors, init DCM algorithm
   delay(20);  // Give sensors enough time to collect data

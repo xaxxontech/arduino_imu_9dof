@@ -14,7 +14,7 @@
 
 int AN[6]; //array that stores the gyro and accelerometer data
 int AN_OFFSET[6]={0,0,0,0,0,0}; //Array that stores the Offset of the sensors
-int SENSOR_SIGN[9] = {1,1,1,-1,-1,-1,1,1,1}; //Correct directions x,y,z - gyro, accelerometer, magnetometer
+int SENSOR_SIGN[9] = {1,1,1,1,1,1,1,1,1}; //Correct directions x,y,z - gyro, accelerometer, magnetometer
 L3G gyroscope;
 LSM303 compass;
 #endif
@@ -108,19 +108,14 @@ void Read_Accel()
   }
 #endif
 #if HW__BRAND == HW__BRAND_POLOLU  
-  compass.init();
-  compass.enableDefault();
-  switch (compass.getDeviceType())
-  {
-    case LSM303::device_D:
-      compass.writeReg(LSM303::CTRL2, 0x18); // 8 g full scale: AFS = 011
-      break;
-    case LSM303::device_DLHC:
-      compass.writeReg(LSM303::CTRL_REG4_A, 0x28); // 8 g full scale: FS = 10; high resolution output mode
-      break;
-    default: // DLM, DLH
-      compass.writeReg(LSM303::CTRL_REG4_A, 0x30); // 8 g full scale: FS = 11
-  }
+  compass.readAcc();
+  
+  AN[3] = compass.a.x >> 4; // shift left 4 bits to use 12-bit representation (1 g = 256)
+  AN[4] = compass.a.y >> 4;
+  AN[5] = compass.a.z >> 4;
+  accel[0] = SENSOR_SIGN[3] * (AN[3] - AN_OFFSET[3]);
+  accel[1] = SENSOR_SIGN[4] * (AN[4] - AN_OFFSET[4]);
+  accel[2] = SENSOR_SIGN[5] * (AN[5] - AN_OFFSET[5]);
 #endif
 }
 
