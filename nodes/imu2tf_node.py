@@ -32,14 +32,17 @@ import serial
 import string
 import math
 import sys
+import copy
 from time import sleep
 from std_msgs.msg import String
 import numpy as np
 from sensor_msgs.msg import Imu
 from geometry_msgs.msg import PoseWithCovarianceStamped
 from geometry_msgs.msg import Twist
+from geometry_msgs.msg import Vector3
 
 import tf
+from genpy.rostime import Duration
 
 
 class RosNode:
@@ -56,19 +59,38 @@ class RosNode:
         self.measurment_last = Imu()
         self.imu_callback_counter = np.uint64(0);
         self.twist = Twist();
+        self.duration = Duration()
         rospy.spin()
     
     
     def callbackIMU(self, msg):
         # rospy.loginfo("ServoCommand received!")
-        print "callbackIMU" 
-        if (self.imu_callback_counter == 0) :
-            self.measurment_last = msg
-        
-        duration = (msg.header.stamp - self.measurment_last.header.stamp)
-        dt = duration.to_sec()
-        
-        self.br.sendTransform((1, 0, 0), tf.transformations.quaternion_from_euler(0, 0, 0), rospy.Time.now(), "base", msg.header.frame_id)
+        avr_samples = 20.0
+        if (self.imu_callback_counter < avr_samples) :
+            if (self.imu_callback_counter == 0) :
+                self.linear_acceleration_offest = Vector3()
+                self.linear_acceleration_offest.x = 0
+                self.linear_acceleration_offest.y = 0
+                self.linear_acceleration_offest.z = 0
+            self.measurment_last = copy.copy(msg)
+            self.linear_acceleration_offest.x += msg.linear_acceleration.x / avr_samples;
+            self.linear_acceleration_offest.y += msg.linear_acceleration.y / avr_samples;
+            self.linear_acceleration_offest.z += msg.linear_acceleration.z / avr_samples;
+        else :   
+            self.duration = (msg.header.stamp - self.measurment_last.header.stamp)
+            dt = self.duration.to_sec()
+            self.twist.linear.x = self.twist.linear.x + (msg.linear_acceleration.x - self.linear_acceleration_offest.x) * dt 
+            self.twist.linear.y = self.twist.linear.y + (msg.linear_acceleration.y - self.linear_acceleration_offest.y) * dt 
+            self.twist.linear.z = self.twist.linear.z + (msg.linear_acceleration.z - self.linear_acceleration_offest.z) * dt 
+            
+            self.pose.pose.pose.position.x = self.pose.pose.pose.position.x + self.twist.linear.x * dt;
+            self.pose.pose.pose.position.y = self.pose.pose.pose.position.y + self.twist.linear.y * dt;
+            self.pose.pose.pose.position.z = self.pose.pose.pose.position.z + self.twist.linear.z * dt;
+            
+            self.br.sendTransform((self.pose.pose.pose.position.x, self.pose.pose.pose.position.y, self.pose.pose.pose.position.z), tf.transformations.quaternion_from_euler(0, 0, 0), rospy.Time.now(), "base", msg.header.frame_id)
+            
+        self.measurment_last = copy.copy(msg)
+        self.imu_callback_counter = self.imu_callback_counter + 1
         
 if __name__ == '__main__':
     node = RosNode()

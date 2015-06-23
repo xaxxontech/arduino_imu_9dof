@@ -37,7 +37,7 @@ import sys
 from sensor_msgs.msg import Imu
 from tf.transformations import quaternion_from_euler
 from dynamic_reconfigure.server import Server
-from razor_imu_9dof.cfg import imuConfig
+from arduino_imu_9dof.cfg import imuConfig
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
 
 degrees2rad = math.pi/180.0
