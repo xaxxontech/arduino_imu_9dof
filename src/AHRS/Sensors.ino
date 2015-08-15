@@ -9,14 +9,14 @@
 #define GYRO_ADDRESS  ((int) 0x68) // 0x68 = 0xD0 / 2
 #endif
 #if HW__BRAND == HW__BRAND_POLOLU
-#include <L3G.h>
-#include <LSM303.h>
+#include <L3G.h>      // https://github.com/pololu/lsm303-arduino 
+#include <LSM303.h>   // https://github.com/pololu/l3g-arduino
 
 int AN[6]; //array that stores the gyro and accelerometer data
 int AN_OFFSET[6]={0,0,0,0,0,0}; //Array that stores the Offset of the sensors
-int SENSOR_SIGN[9] = {1,1,1,1,1,1,1,1,1}; //Correct directions x,y,z - gyro, accelerometer, magnetometer
+int SENSOR_SIGN[9] = {1,1,1,-1,-1,-1,1,1,1};; //Correct directions x,y,z - gyro, accelerometer, magnetometer
 L3G gyroscope;
-LSM303 compass;
+LSM303 AccelAndMagnet;
 #endif
 
 // Arduino backward compatibility macros
@@ -56,18 +56,18 @@ void Accel_Init()
   delay(5);
 #endif
 #if HW__BRAND == HW__BRAND_POLOLU
-  compass.init();
-  compass.enableDefault();
-  switch (compass.getDeviceType())
+  AccelAndMagnet.init();
+  AccelAndMagnet.enableDefault();
+  switch (AccelAndMagnet.getDeviceType())
   {
     case LSM303::device_D:
-      compass.writeReg(LSM303::CTRL2, 0x18); // 8 g full scale: AFS = 011
+      AccelAndMagnet.writeReg(LSM303::CTRL2, 0x18); // 8 g full scale: AFS = 011
       break;
     case LSM303::device_DLHC:
-      compass.writeReg(LSM303::CTRL_REG4_A, 0x28); // 8 g full scale: FS = 10; high resolution output mode
+      AccelAndMagnet.writeReg(LSM303::CTRL_REG4_A, 0x28); // 8 g full scale: FS = 10; high resolution output mode
       break;
     default: // DLM, DLH
-      compass.writeReg(LSM303::CTRL_REG4_A, 0x30); // 8 g full scale: FS = 11
+      AccelAndMagnet.writeReg(LSM303::CTRL_REG4_A, 0x30); // 8 g full scale: FS = 11
   }
 #endif
 
@@ -108,11 +108,11 @@ void Read_Accel()
   }
 #endif
 #if HW__BRAND == HW__BRAND_POLOLU  
-  compass.readAcc();
+  AccelAndMagnet.readAcc();
   
-  AN[3] = compass.a.x >> 4; // shift left 4 bits to use 12-bit representation (1 g = 256)
-  AN[4] = compass.a.y >> 4;
-  AN[5] = compass.a.z >> 4;
+  AN[3] = AccelAndMagnet.a.x >> 4; // shift left 4 bits to use 12-bit representation (1 g = 256)
+  AN[4] = AccelAndMagnet.a.y >> 4;
+  AN[5] = AccelAndMagnet.a.z >> 4;
   accel[0] = SENSOR_SIGN[3] * (AN[3] - AN_OFFSET[3]);
   accel[1] = SENSOR_SIGN[4] * (AN[4] - AN_OFFSET[4]);
   accel[2] = SENSOR_SIGN[5] * (AN[5] - AN_OFFSET[5]);
@@ -135,7 +135,7 @@ void Magn_Init()
   delay(5);
 #endif
 #if HW__BRAND == HW__BRAND_POLOLU  
-  // doesn't need to do anything because Accel_Init() should have already called compass.enableDefault()
+  // doesn't need to do anything because Accel_Init() should have already called AccelAndMagnet.enableDefault()
 #endif
 }
 
@@ -193,11 +193,11 @@ void Read_Magn()
   }
 #endif
 #if HW__BRAND == HW__BRAND_POLOLU  
-  compass.readMag();
+  AccelAndMagnet.readMag();
   
-  magnetom[0]  = SENSOR_SIGN[6] * compass.m.x;
-  magnetom[1] = SENSOR_SIGN[7] * compass.m.y;
-  magnetom[2] = SENSOR_SIGN[8] * compass.m.z;
+  magnetom[0]  = SENSOR_SIGN[6] * AccelAndMagnet.m.x;
+  magnetom[1] = SENSOR_SIGN[7] * AccelAndMagnet.m.y;
+  magnetom[2] = SENSOR_SIGN[8] * AccelAndMagnet.m.z;
 #endif
 }
 
