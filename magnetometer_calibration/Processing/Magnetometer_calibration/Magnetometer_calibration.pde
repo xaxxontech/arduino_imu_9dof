@@ -40,7 +40,7 @@ import org.ejml.ops.*;
 // 1. Have a look at the Processing console output of this sketch.
 // 2. Look for the serial port list and find the port you need (it's the same as in Arduino).
 // 3. Set your port number here:
-final static int SERIAL_PORT_NUM = 0;
+final static int SERIAL_PORT_NUM = 2;
 // 4. Try again.
 
 
@@ -91,7 +91,7 @@ void setup() {
   // Setup serial port I/O
   println("AVAILABLE SERIAL PORTS:");
   println(Serial.list());
-  String portName = Serial.list()[SERIAL_PORT_NUM];
+  String portName = "/dev/ttyUSB2"; // Serial.list()[SERIAL_PORT_NUM];
   println();
   println("HAVE A LOOK AT THE LIST ABOVE AND SET THE RIGHT SERIAL PORT NUMBER IN THE CODE!");
   println("  -> Using port " + SERIAL_PORT_NUM + ": " + portName);

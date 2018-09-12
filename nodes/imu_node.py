@@ -28,7 +28,7 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 import rospy
-import serial
+import serial, os
 import string
 import math
 import sys
@@ -51,6 +51,23 @@ def reconfig_callback(config, level):
     imu_yaw_calibration = config['yaw_calibration']
     rospy.loginfo("Set imu_yaw_calibration to %d" % (imu_yaw_calibration))
     return config
+    
+def checkBoardId():
+	ser.reset_input_buffer()
+	ser.write('#x' + chr(13)) # check board id command
+	line = ""
+	rospy.sleep(0.1)
+	while ser.inWaiting() > 0:
+		line = ser.readline().strip()
+
+	if not line == "<id::AHRS>":
+		rospy.loginfo("imu_node.py incorrect board id: "+line)
+		return False
+
+	rospy.loginfo("imu_node.py connected to: "+line)
+	return True
+	
+	
 
 rospy.init_node("imu_node")
 #We only care about the most recent measurement, i.e. queue_size=1
@@ -58,6 +75,73 @@ pub = rospy.Publisher('imu', Imu, queue_size=1)
 srv = Server(imuConfig, reconfig_callback)  # define dynamic_reconfigure callback
 diag_pub = rospy.Publisher('diagnostics', DiagnosticArray, queue_size=1)
 diag_pub_time = rospy.get_time();
+
+
+rospy.sleep(5) # wait for other node to connect to serial 
+
+# usb connect
+portnum = 0;
+
+while portnum <= 6:
+	port = '/dev/ttyUSB'+str(portnum)
+
+	rospy.loginfo("imu_node.py: trying port: "+port)
+	
+	lockfilepath = "/tmp/dev_ttyUSB"+str(portnum)
+	if os.path.exists(lockfilepath):
+		rospy.loginfo("imu_node.py port busy: "+port)
+		portnum += 1
+		continue
+		
+	open(lockfilepath, 'w') # creates lockfile
+	
+	try:
+		ser = serial.Serial(port, 57600, timeout=5)
+	except serial.SerialException: 
+		rospy.loginfo("imu_node.py port exception: "+port)
+		os.remove(lockfilepath)
+		portnum += 1
+		rospy.sleep(1)
+		continue
+		
+	rospy.sleep(2)
+
+	if checkBoardId():
+		break
+		
+	ser.close()
+	if os.path.exists(lockfilepath):
+		os.remove(lockfilepath)
+	rospy.sleep(1)
+	portnum += 1
+
+
+if not ser.is_open:
+	rospy.logerr("imu_node.py sensor not found")
+	sys.exit(0)
+	
+# rospy.loginfo("Giving the IMU board 3 seconds to connect...")
+rospy.sleep(1) # Sleep for 3 seconds to wait for the board to connect
+
+
+# default_port='/dev/ttyUSB0'
+# port = rospy.get_param('~port', default_port)
+
+# default_baudrate=57600
+#baudrate = rospy.get_param('~baudrate', default_baudrate)
+
+#read calibration parameters
+# port = rospy.get_param('~port', default_port)
+
+
+# Check your COM port and baud rate
+# rospy.loginfo("Opening %s...", port)
+# try:
+    # ser = serial.Serial(port=port, baudrate=57600, timeout=1)
+# except serial.serialutil.SerialException:
+    # rospy.logerr("IMU not found at port "+port + ". Did you specify the correct port in the launch file?")
+    # sys.exit(0)
+
 
 imuMsg = Imu()
 
@@ -97,14 +181,9 @@ imuMsg.linear_acceleration_covariance = [
 0 , 0 , 0.04
 ]
 
-default_port='/dev/ttyUSB0'
-port = rospy.get_param('~port', default_port)
 
-default_baudrate=57600
-#baudrate = rospy.get_param('~baudrate', default_baudrate)
 
-#read calibration parameters
-port = rospy.get_param('~port', default_port)
+
 
 #accelerometer
 accel_x_min = rospy.get_param('~accel_x_min', -250.0)
@@ -136,22 +215,12 @@ gyro_average_offset_z = rospy.get_param('~gyro_average_offset_z', 0.0)
 #rospy.loginfo("%s %s %s", str(calibration_magn_use_extended), str(magn_ellipsoid_center), str(magn_ellipsoid_transform[0][0]))
 #rospy.loginfo("%f %f %f", gyro_average_offset_x, gyro_average_offset_y, gyro_average_offset_z)
 
-# Check your COM port and baud rate
-rospy.loginfo("Opening %s...", port)
-try:
-    ser = serial.Serial(port=port, baudrate=57600, timeout=1)
-except serial.serialutil.SerialException:
-    rospy.logerr("IMU not found at port "+port + ". Did you specify the correct port in the launch file?")
-    #exit
-    sys.exit(0)
 
 roll=0
 pitch=0
 yaw=0
 seq=0
 accel_factor = 9.806 / 256.0    # sensor reports accel as 256.0 = 1G (9.8m/s^2). Convert to m/s^2.
-rospy.loginfo("Giving the IMU board 5 seconds to boot...")
-rospy.sleep(5) # Sleep for 5 seconds to wait for the board to boot
 
 ### configure board ###
 #stop datastream
@@ -161,7 +230,30 @@ ser.write('#o0' + chr(13))
 #automatic flush - NOT WORKING
 #ser.flushInput()  #discard old input, still in invalid format
 #flush manually, as above command is not working
-discard = ser.readlines() 
+# discard = ser.readlines() 
+# ser.reset_input_buffer()
+
+############################################## zero gyro
+ser.write('#o1' + chr(13))
+ser.write('#oc' + chr(13))
+ser.write('#on' + chr(13))
+ser.write('#on' + chr(13))
+
+ser.reset_input_buffer()
+rospy.loginfo("zero gyro")
+for x in range(0, 500): # discard initial ouput
+	line = ser.readline()
+
+# gyro x,y,z (current/average) = 23.00/24.18  -71.00/-72.09  -1.00/-0.33
+gyro_average_offset_x = float(line.split()[4].split("/")[1])
+gyro_average_offset_y = float(line.split()[5].split("/")[1])
+gyro_average_offset_z = float(line.split()[6].split("/")[1])
+
+
+
+ser.write('#o0' + chr(13))
+
+
 
 #set output mode
 ser.write('#ox' + chr(13)) # To start display angle and sensor reading in text
@@ -201,7 +293,7 @@ ser.write('#cgy' + str(gyro_average_offset_y) + chr(13))
 ser.write('#cgz' + str(gyro_average_offset_z) + chr(13))
 
 #print calibration values for verification by user
-ser.flushInput()
+#ser.flushInput()
 ser.write('#p' + chr(13))
 calib_data = ser.readlines()
 calib_data_print = "Printing set calibration values:\r\n"
@@ -215,72 +307,83 @@ ser.write('#o1' + chr(13))
 #automatic flush - NOT WORKING
 #ser.flushInput()  #discard old input, still in invalid format
 #flush manually, as above command is not working - it breaks the serial connection
-rospy.loginfo("Flushing first 200 IMU entries...")
-for x in range(0, 200):
+ser.reset_input_buffer()
+rospy.loginfo("Flushing first 50 IMU entries...")
+for x in range(0, 50):
     line = ser.readline()
 rospy.loginfo("Publishing IMU data...")
 #f = open("raw_imu_data.log", 'w')
 
 while not rospy.is_shutdown():
-    line = ser.readline()
-    line = line.replace("#YPRAG=","")   # Delete "#YPRAG="
-    #f.write(line)                     # Write to the output log file
-    words = string.split(line,",")    # Fields split
-    if len(words) > 2:
-        #in AHRS firmware z axis points down, in ROS z axis points up (see REP 103)
-        yaw_deg = -float(words[0])
-        yaw_deg = yaw_deg + imu_yaw_calibration
-        if yaw_deg > 180.0:
-            yaw_deg = yaw_deg - 360.0
-        if yaw_deg < -180.0:
-            yaw_deg = yaw_deg + 360.0
-        yaw = yaw_deg*degrees2rad
-        #in AHRS firmware y axis points right, in ROS y axis points left (see REP 103)
-        pitch = -float(words[1])*degrees2rad
-        roll = float(words[2])*degrees2rad
+	try:
+		line = ser.readline()
+	except:
+		break
+	line = line.replace("#YPRAG=","")   # Delete "#YPRAG="
+	#f.write(line)                     # Write to the output log file
+	words = string.split(line,",")    # Fields split
+	if len(words) > 2:
+		#in AHRS firmware z axis points down, in ROS z axis points up (see REP 103)
+		yaw_deg = -float(words[0])
+		yaw_deg = yaw_deg + imu_yaw_calibration
+		if yaw_deg > 180.0:
+			yaw_deg = yaw_deg - 360.0
+		if yaw_deg < -180.0:
+			yaw_deg = yaw_deg + 360.0
+		yaw = yaw_deg*degrees2rad
+		#in AHRS firmware y axis points right, in ROS y axis points left (see REP 103)
+		pitch = -float(words[1])*degrees2rad # COLIN: was negative!
+		roll = float(words[2])*degrees2rad
 
-        # Publish message
-        # AHRS firmware accelerations are negated
-        # This means y and z are correct for ROS, but x needs reversing
-        imuMsg.linear_acceleration.x = -float(words[3]) * accel_factor
-        imuMsg.linear_acceleration.y = float(words[4]) * accel_factor
-        imuMsg.linear_acceleration.z = float(words[5]) * accel_factor
+		# Publish message
+		# AHRS firmware accelerations are negated
+		# This means y and z are correct for ROS, but x needs reversing
+		imuMsg.linear_acceleration.x = -float(words[3]) * accel_factor
+		imuMsg.linear_acceleration.y = float(words[4]) * accel_factor
+		imuMsg.linear_acceleration.z = float(words[5]) * accel_factor
 
-        imuMsg.angular_velocity.x = float(words[6])
-        #in AHRS firmware y axis points right, in ROS y axis points left (see REP 103)
-        imuMsg.angular_velocity.y = -float(words[7])
-        #in AHRS firmware z axis points down, in ROS z axis points up (see REP 103) 
-        imuMsg.angular_velocity.z = -float(words[8])
+		imuMsg.angular_velocity.x = float(words[6])
+		#in AHRS firmware y axis points right, in ROS y axis points left (see REP 103)
+		imuMsg.angular_velocity.y = -float(words[7])
+		#in AHRS firmware z axis points down, in ROS z axis points up (see REP 103) 
+		imuMsg.angular_velocity.z = -float(words[8])
 
-    q = quaternion_from_euler(roll,pitch,yaw)
-    imuMsg.orientation.x = q[0]
-    imuMsg.orientation.y = q[1]
-    imuMsg.orientation.z = q[2]
-    imuMsg.orientation.w = q[3]
-    imuMsg.header.stamp= rospy.Time.now()
-    imuMsg.header.frame_id = 'base_imu_link'
-    imuMsg.header.seq = seq
-    seq = seq + 1
-    pub.publish(imuMsg)
+	q = quaternion_from_euler(roll,pitch,yaw)
+	imuMsg.orientation.x = q[0]
+	imuMsg.orientation.y = q[1]
+	imuMsg.orientation.z = q[2]
+	imuMsg.orientation.w = q[3]
+	imuMsg.header.stamp= rospy.Time.now()
+	imuMsg.header.frame_id = 'base_imu_link'
+	imuMsg.header.seq = seq
+	seq = seq + 1
+	pub.publish(imuMsg)
 
-    if (diag_pub_time < rospy.get_time()) :
-        diag_pub_time += 1
-        diag_arr = DiagnosticArray()
-        diag_arr.header.stamp = rospy.get_rostime()
-        diag_arr.header.frame_id = '1'
-        diag_msg = DiagnosticStatus()
-        diag_msg.name = 'INU'
-        diag_msg.level = DiagnosticStatus.OK
-        diag_msg.message = 'Received AHRS measurement'
-        diag_msg.values.append(KeyValue('roll (deg)',
-                                str(roll*(180.0/math.pi))))
-        diag_msg.values.append(KeyValue('pitch (deg)',
-                                str(pitch*(180.0/math.pi))))
-        diag_msg.values.append(KeyValue('yaw (deg)',
-                                str(yaw*(180.0/math.pi))))
-        diag_msg.values.append(KeyValue('sequence number', str(seq)))
-        diag_arr.status.append(diag_msg)
-        diag_pub.publish(diag_arr)
-        
+	if (diag_pub_time < rospy.get_time()) :
+		diag_pub_time += 1
+		diag_arr = DiagnosticArray()
+		diag_arr.header.stamp = rospy.get_rostime()
+		diag_arr.header.frame_id = '1'
+		diag_msg = DiagnosticStatus()
+		diag_msg.name = 'INU'
+		diag_msg.level = DiagnosticStatus.OK
+		diag_msg.message = 'Received AHRS measurement'
+		diag_msg.values.append(KeyValue('roll (deg)',
+								str(roll*(180.0/math.pi))))
+		diag_msg.values.append(KeyValue('pitch (deg)',
+								str(pitch*(180.0/math.pi))))
+		diag_msg.values.append(KeyValue('yaw (deg)',
+								str(yaw*(180.0/math.pi))))
+		diag_msg.values.append(KeyValue('sequence number', str(seq)))
+		diag_arr.status.append(diag_msg)
+		diag_pub.publish(diag_arr)
+
+
+#stop datastream
+ser.write('#o0' + chr(13))        
 ser.close
-#f.close
+if os.path.exists(lockfilepath):
+	os.remove(lockfilepath)
+
+
+

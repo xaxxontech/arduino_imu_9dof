@@ -178,7 +178,7 @@
 /*****************************************************************/
 // Select your hardware here by uncommenting one line!
 #define HW__BRAND_SPARKFUN     1 // SparkFun 
-//#define HW__BRAND_POLOLU       2 // Pololu AltIMU-10 v4 or MinIMU-9 v3 on an Arduino Hardware
+#define HW__BRAND_POLOLU       2 // Pololu AltIMU-10 v4 or MinIMU-9 v3 on an Arduino Hardware
 #define HW__BRAND HW__BRAND_POLOLU   // Pololu 
 //#define HW__BRAND HW__BRAND_SPARKFUN   // SparkFun 
 //#define HW__VERSION_CODE 10125 // SparkFun "9DOF Razor IMU" version "SEN-10125" (HMC5843 magnetometer)
@@ -191,7 +191,7 @@
 // OUTPUT OPTIONS
 /*****************************************************************/
 // Set your serial port baud rate used to send out data here!
-#define OUTPUT__BAUD_RATE 57600
+#define OUTPUT__BAUD_RATE 57600 
 
 // Sensor data output interval in milliseconds
 // This may not work, if faster than 20ms (=50Hz)
@@ -262,6 +262,7 @@ float magn_ellipsoid_transform[3][3] = {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}};
 
 // Gyroscope
 // "gyro x,y,z (current/average) = .../OFFSET_X  .../OFFSET_Y  .../OFFSET_Z
+// gyro x,y,z (current/average) = 27.00/25.34  -70.00/-70.61  -14.00/-11.99
 float GYRO_AVERAGE_OFFSET_X = 0.0;
 float GYRO_AVERAGE_OFFSET_Y = 0.0;
 float GYRO_AVERAGE_OFFSET_Z = 0.0;
@@ -507,6 +508,7 @@ void setup()
 {
   // Init serial output
   Serial.begin(OUTPUT__BAUD_RATE);
+  Serial.println("<reset AHRS.ino>");
   
   // Init status LED
   pinMode (STATUS_LED_PIN, OUTPUT);
@@ -784,6 +786,9 @@ void loop()
               GYRO_AVERAGE_OFFSET_Z = value_param;
          }
       }
+      
+      else if (command == 'x') Serial.println("<id::AHRS>");
+      
 #if OUTPUT__HAS_RN_BLUETOOTH == true
       // Read messages from bluetooth module
       // For this to work, the connect/disconnect message prefix of the module has to be set to "#".

@@ -1,5 +1,5 @@
 <launch>  
-  <arg name="port" default="/dev/ttyACM0" />
+  <arg name="port" default="/dev/ttyUSB1" />
   <arg name="baudrate" default="57600" />
   
    <include file="$(find arduino_imu_9dof)/launch/pub.launch" >
