@@ -77,7 +77,7 @@ diag_pub = rospy.Publisher('diagnostics', DiagnosticArray, queue_size=1)
 diag_pub_time = rospy.get_time();
 
 
-rospy.sleep(5) # wait for other node to connect to serial 
+# rospy.sleep(10) # wait for other node to connect to serial 
 
 # usb connect
 portnum = 0;
@@ -88,8 +88,17 @@ while portnum <= 6:
 	rospy.loginfo("imu_node.py: trying port: "+port)
 	
 	lockfilepath = "/tmp/dev_ttyUSB"+str(portnum)
-	if os.path.exists(lockfilepath):
-		rospy.loginfo("imu_node.py port busy: "+port)
+	tries = 0
+	while tries < 5:
+		if os.path.exists(lockfilepath):
+			rospy.loginfo("imu_node.py port busy: "+port)
+			rospy.sleep(1)
+			tries += 1
+		else:
+			break 
+
+	if tries == 5:
+		rospy.loginfo("imu_node.py giving up on port: "+port)
 		portnum += 1
 		continue
 		
@@ -332,7 +341,7 @@ while not rospy.is_shutdown():
 			yaw_deg = yaw_deg + 360.0
 		yaw = yaw_deg*degrees2rad
 		#in AHRS firmware y axis points right, in ROS y axis points left (see REP 103)
-		pitch = -float(words[1])*degrees2rad # COLIN: was negative!
+		pitch = -float(words[1])*degrees2rad 
 		roll = float(words[2])*degrees2rad
 
 		# Publish message
@@ -341,7 +350,7 @@ while not rospy.is_shutdown():
 		imuMsg.linear_acceleration.x = -float(words[3]) * accel_factor
 		imuMsg.linear_acceleration.y = float(words[4]) * accel_factor
 		imuMsg.linear_acceleration.z = float(words[5]) * accel_factor
-
+		
 		imuMsg.angular_velocity.x = float(words[6])
 		#in AHRS firmware y axis points right, in ROS y axis points left (see REP 103)
 		imuMsg.angular_velocity.y = -float(words[7])
